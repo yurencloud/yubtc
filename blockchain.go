@@ -42,13 +42,13 @@ var genesisBlock = Block{
 }
 
 // 区块链数据库
-type BlockChain struct {
+type Blockchain struct {
 	lastedBlockHash []byte   //最新一个区块的hash
 	db  *bolt.DB //区块链数据库
 }
 
 // 区块链数据库迭代器用于迭代区块
-type BlockChainIterator struct {
+type BlockchainIterator struct {
 	currentHash []byte   //当前区块的hash
 	db          *bolt.DB //区块链数据库
 }
@@ -100,8 +100,8 @@ func calculateHashForBlock(block Block) []byte {
 }
 
 // 生成下一个区块
-func (blockChain *BlockChain)  generateNextBlock(data []byte) Block {
-	previousBlock := blockChain.getLatestBlock()
+func (blockchain *Blockchain)  generateNextBlock(data []byte) Block {
+	previousBlock := blockchain.getLatestBlock()
 	index := previousBlock.Index + 1
 	previousHash := previousBlock.Hash
 	timestamp := time.Now().Unix()
@@ -109,9 +109,9 @@ func (blockChain *BlockChain)  generateNextBlock(data []byte) Block {
 	return Block{index, hash, previousHash, timestamp, data}
 }
 
-func (blockChain *BlockChain) getLatestBlock() *Block {
+func (blockchain *Blockchain) getLatestBlock() *Block {
 	var block *Block
-	err := blockChain.db.View(func(tx *bolt.Tx) error {
+	err := blockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash := b.Get([]byte("l"))
 		block = DeserializeBlock(b.Get(lastHash))
@@ -123,9 +123,9 @@ func (blockChain *BlockChain) getLatestBlock() *Block {
 	return block
 }
 
-func (blockChain *BlockChain) getGenesisBlock() *Block {
+func (blockchain *Blockchain) getGenesisBlock() *Block {
 	var block *Block
-	err := blockChain.db.View(func(tx *bolt.Tx) error {
+	err := blockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		block = DeserializeBlock(b.Get([]byte("ba8613cd3c6c6d714cbdd14b8a1c03e59331a96247f9b3d62278e8d97e1531e1")))
 		return nil
@@ -152,14 +152,14 @@ func isValidNewBlock(newBlock Block, previousBlock Block) bool {
 }
 
 // 验证区块链
-func isValidBlockChain(blockChain *BlockChain) bool {
+func isValidBlockchain(blockchain *Blockchain) bool {
 	// 验证创世区块
-	if bytes.Equal(calculateHashForBlock(*blockChain.getGenesisBlock()), genesisBlock.Hash) {
+	if bytes.Equal(calculateHashForBlock(*blockchain.getGenesisBlock()), genesisBlock.Hash) {
 		return false
 	}
 	// 逐一验证区块链上所有区块与前一区块的完整性
-	bci := blockChain.Iterator()
-	currentBlock := blockChain.getLatestBlock()
+	bci := blockchain.Iterator()
+	currentBlock := blockchain.getLatestBlock()
 	for {
 		previousBlock := bci.Prev()
 		if !isValidNewBlock(*currentBlock, *previousBlock) {
@@ -171,24 +171,24 @@ func isValidBlockChain(blockChain *BlockChain) bool {
 }
 
 // 多节点存在时，各节点区块链长度可能不一致，同步时取最长链
-func (blockChain *BlockChain) replaceBlockChain(newBlockChain *BlockChain) {
+func (blockchain *Blockchain) replaceBlockchain(newBlockchain *Blockchain) {
 	//查询数据库中最后一块的hash
-	lastedBlock := blockChain.getLatestBlock()
-	if isValidBlockChain(newBlockChain) && newBlockChain.getLatestBlock().Index > lastedBlock.Index {
+	lastedBlock := blockchain.getLatestBlock()
+	if isValidBlockchain(newBlockchain) && newBlockchain.getLatestBlock().Index > lastedBlock.Index {
 		log.Println("Received blockchain is valid. Replacing current blockchain with received blockchain")
-		blockChain.updateBlockChain(newBlockChain, lastedBlock.Hash)
+		blockchain.updateBlockchain(newBlockchain, lastedBlock.Hash)
 	} else {
 		log.Println("Received blockchain invalid")
 	}
 }
 
 // 从指定节点的区块链更新到最新的区块链
-func (blockChain *BlockChain) updateBlockChain(newBlockChain *BlockChain, lastedBlockHash []byte)  {
-	err := newBlockChain.db.View(func(tx *bolt.Tx) error {
+func (blockchain *Blockchain) updateBlockchain(newBlockchain *Blockchain, lastedBlockHash []byte)  {
+	err := newBlockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		c := b.Cursor()
 		for k, v := c.Seek(lastedBlockHash); k != nil; k, v = c.Next() {
-			blockChain.AddBlock(*DeserializeBlock(v))
+			blockchain.AddBlock(*DeserializeBlock(v))
 		}
 		return nil
 	})
@@ -199,9 +199,9 @@ func (blockChain *BlockChain) updateBlockChain(newBlockChain *BlockChain, lasted
 
 
 //区块链数据库添加区块
-func (blockChain *BlockChain) AddBlock(block Block) {
+func (blockchain *Blockchain) AddBlock(block Block) {
 	//在挖掘新块之后，我们将其序列化表示保存到数据块中并更新"l"，该密钥现在存储新块的哈希。
-	err := blockChain.db.Update(func(tx *bolt.Tx) error {
+	err := blockchain.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blocksBucket))
 		err := bucket.Put(block.Hash, block.Serialize())
 		if err != nil {
@@ -211,7 +211,7 @@ func (blockChain *BlockChain) AddBlock(block Block) {
 		if err != nil {
 			log.Panic(err)
 		}
-		blockChain.lastedBlockHash = block.Hash
+		blockchain.lastedBlockHash = block.Hash
 		return nil
 	})
 	if err != nil {
@@ -220,13 +220,13 @@ func (blockChain *BlockChain) AddBlock(block Block) {
 }
 
 // 迭代器
-func (blockChain *BlockChain) Iterator() *BlockChainIterator {
-	blockChainDbIterator := &BlockChainIterator{blockChain.lastedBlockHash, blockChain.db}
-	return blockChainDbIterator
+func (blockchain *Blockchain) Iterator() *BlockchainIterator {
+	blockchainDbIterator := &BlockchainIterator{blockchain.lastedBlockHash, blockchain.db}
+	return blockchainDbIterator
 }
 
 // 迭代下一区块(其他是上一个区块，一直到创世区块)
-func (i *BlockChainIterator) Prev() *Block {
+func (i *BlockchainIterator) Prev() *Block {
 	var block *Block
 	err := i.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -241,8 +241,8 @@ func (i *BlockChainIterator) Prev() *Block {
 	return block
 }
 
-func (blockChain *BlockChain)  Print()  {
-	bci := blockChain.Iterator()
+func (blockchain *Blockchain)  Print()  {
+	bci := blockchain.Iterator()
 	for {
 		block := bci.Prev()
 		fmt.Printf("============ Block %x ============\n", block.Hash)
@@ -256,12 +256,12 @@ func (blockChain *BlockChain)  Print()  {
 
 
 // 关闭方法
-func Close(bc *BlockChain) error {
+func Close(bc *Blockchain) error {
 	return bc.db.Close()
 }
 
 // 获取本地区块链或创建一个新区块链
-func GetBlockchain() *BlockChain {
+func GetBlockchain() *Blockchain {
 	if dbExists() == false {
 		fmt.Println("No existing blockchain found. Now Create One")
 		return CreateBlockchain()
@@ -280,13 +280,13 @@ func GetBlockchain() *BlockChain {
 	if err != nil {
 		log.Panic(err)
 	}
-	blockChain := BlockChain{lastedBlockHash, db}
-	return &blockChain
+	blockchain := Blockchain{lastedBlockHash, db}
+	return &blockchain
 }
 
 
 // 创建一个全新区块链
-func CreateBlockchain() *BlockChain {
+func CreateBlockchain() *Blockchain {
 	if dbExists() {
 		fmt.Println("Blockchain already exists.")
 		os.Exit(1)
@@ -323,9 +323,9 @@ func CreateBlockchain() *BlockChain {
 		log.Panic(err)
 	}
 
-	blockChain := BlockChain{lastedBlockHash, db}
+	blockchain := Blockchain{lastedBlockHash, db}
 
-	return &blockChain
+	return &blockchain
 }
 
 
@@ -384,7 +384,7 @@ func makeBasicHost(listenPort int, security bool, randSeed int64) (host.Host, er
 	fullAddress := address.Encapsulate(hostAddress)
 	log.Printf("I am %s\n", fullAddress)
 	if security {
-		log.Printf("Now run \"go run blockchain.go -l %d -d %s -security\" on a different terminal\n", listenPort+1, fullAddress)
+		log.Printf("Now run \"go run blockchain.go -l %d -d %s -s\" on a different terminal\n", listenPort+1, fullAddress)
 	} else {
 		log.Printf("Now run \"go run blockchain.go -l %d -d %s\" on a different terminal\n", listenPort+1, fullAddress)
 	}
@@ -402,7 +402,7 @@ func handleStream(s net.Stream) {
 
 // 读取p2p端口发送过来的数据
 func readData(rw *bufio.ReadWriter) {
-	blockChain := GetBlockchain()
+	blockchain := GetBlockchain()
 	for {
 		str, err := rw.ReadString('\n')
 		if err != nil {
@@ -412,13 +412,13 @@ func readData(rw *bufio.ReadWriter) {
 			return
 		}
 		if str != "\n" {
-			chain := BlockChain{}
+			block := Block{}
 			log.Println(str)
-			if err := json.Unmarshal([]byte(str), &chain); err != nil {
+			if err := json.Unmarshal([]byte(str), &block); err != nil {
 				log.Fatal(err)
 			}
 			mutex.Lock()
-			blockChain.replaceBlockChain(&chain)
+			blockchain.AddBlock(block)
 			mutex.Unlock()
 		}
 	}
@@ -426,18 +426,21 @@ func readData(rw *bufio.ReadWriter) {
 
 // 广播写数据
 func writeData(rw *bufio.ReadWriter) {
-	blockChain := GetBlockchain()
+	blockchain := GetBlockchain()
 	go func() {
 		for {
+			// 每5秒广播最新的区块
 			time.Sleep(5 * time.Second)
 			mutex.Lock()
-			blockChainBytes, err := json.Marshal(*blockChain)
+			lastedBlock := blockchain.getLatestBlock()
+			lastedBlockBytes, err := json.Marshal(*lastedBlock)
 			if err != nil {
 				log.Println(err)
 			}
 			mutex.Unlock()
 			mutex.Lock()
-			rw.WriteString(fmt.Sprintf("%s\n", string(blockChainBytes)))
+			// 广播最新区块
+			rw.WriteString(fmt.Sprintf("%s\n", string(lastedBlockBytes)))
 			rw.Flush()
 			mutex.Unlock()
 		}
@@ -446,6 +449,7 @@ func writeData(rw *bufio.ReadWriter) {
 	stdReader := bufio.NewReader(os.Stdin)
 
 	for {
+		// 获取用户的输入，若没有，则跳过
 		fmt.Print("> ")
 		sendData, err := stdReader.ReadString('\n')
 		if err != nil {
@@ -454,35 +458,34 @@ func writeData(rw *bufio.ReadWriter) {
 		// 删除换行符号，得到要记录到块的数据
 		sendData = strings.Replace(sendData, "\n", "", -1)
 		// 生成新块
-		newBlock := blockChain.generateNextBlock([]byte(sendData))
+		newBlock := blockchain.generateNextBlock([]byte(sendData))
 		// 验证新块
-		if isValidNewBlock(newBlock, *blockChain.getLatestBlock()) {
+		if isValidNewBlock(newBlock, *blockchain.getLatestBlock()) {
 			mutex.Lock()
-			blockChain.AddBlock(newBlock)
+			blockchain.AddBlock(newBlock)
 			mutex.Unlock()
 		}
-		blockChainBytes, err := json.Marshal(blockChain)
+		newBlockBytes, err := json.Marshal(newBlock)
 		if err != nil {
 			log.Println(err)
 		}
-		spew.Dump(*blockChain)
+		// 打印最新区块
+		spew.Dump(newBlock)
 		mutex.Lock()
-		rw.WriteString(fmt.Sprintf("%s\n", string(blockChainBytes)))
+		// 广播最新区块
+		rw.WriteString(fmt.Sprintf("%s\n", string(newBlockBytes)))
 		rw.Flush()
 		mutex.Unlock()
 	}
 }
 
 func main() {
-	// LibP2P code uses golog to log messages. They log with different
-	// string IDs (i.e. "swarm"). We can control the verbosity level for
-	// all loggers with:
-	golog.SetAllLoggers(goLogging.INFO) // Change to DEBUG for extra info
+	// 可以改成debug模式查看更多p2p信息
+	golog.SetAllLoggers(goLogging.INFO)
 
-	// Parse options from the command line
 	listenF := flag.Int("l", 0, "wait for incoming connections")
 	target := flag.String("d", "", "target peer to dial")
-	security := flag.Bool("security", false, "enable security")
+	security := flag.Bool("s", false, "enable security")
 	seed := flag.Int64("seed", 0, "set random seed for id generation")
 	flag.Parse()
 
@@ -498,17 +501,14 @@ func main() {
 
 	if *target == "" {
 		log.Println("listening for connections")
-		// Set a stream handler on host A. /p2p/1.0.0 is
-		// a user-defined protocol name.
+		// 如果没有p2p目标节点，则直接开启一个独立p2p节点
 		p2pHost.SetStreamHandler("/p2p/1.0.0", handleStream)
-
-		select {} // hang forever
-		/**** This is where the listener code ends ****/
+		select {}
 	} else {
+		// 如果有p2p目标节点
 		p2pHost.SetStreamHandler("/p2p/1.0.0", handleStream)
 
-		// The following code extracts target's peer ID from the
-		// given multiaddress
+		// 从target中获取要对外暴露的p2p节点地址
 		ipfsaddr, err := multiAddress.NewMultiaddr(*target)
 		if err != nil {
 			log.Fatalln(err)
@@ -524,20 +524,17 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		// Decapsulate the /ipfs/<peerID> part from the target
-		// /ip4/<a.b.c.d>/ipfs/<peer> becomes /ip4/<a.b.c.d>
-		targetPeerAddr, _ := multiAddress.NewMultiaddr(
-			fmt.Sprintf("/ipfs/%s", peer.IDB58Encode(peerid)))
+
+		targetPeerAddr, _ := multiAddress.NewMultiaddr(fmt.Sprintf("/ipfs/%s", peer.IDB58Encode(peerid)))
 		targetAddr := ipfsaddr.Decapsulate(targetPeerAddr)
 
-		// We have a peer ID and a targetAddr so we add it to the peerstore
-		// so LibP2P knows how to contact it
+		// 我们有了peer ID 和 目标地址，所以我们可以将其添加到peerstore，这样LibP2P就知道如何连接他
 		p2pHost.Peerstore().AddAddr(peerid, targetAddr, peerstore.PermanentAddrTTL)
 
 		log.Println("opening stream")
-		// make a new stream from host B to host A
-		// it should be handled on host A by the handler we set above because
-		// we use the same /p2p/1.0.0 protocol
+
+		// 新建一个A - B节点的p2p连接
+		// A和B都要设置相同的： /p2p/1.0.0 protocol
 		s, err := p2pHost.NewStream(context.Background(), peerid, "/p2p/1.0.0")
 		if err != nil {
 			log.Fatalln(err)
