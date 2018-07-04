@@ -1,0 +1,18 @@
+package types
+
+
+
+type MESSAGE_TYPE uint
+
+const (
+	QUERY_LATEST MESSAGE_TYPE = iota
+	RESPONSE_LATEST
+	QUERY_ALL
+	RESPONSE_BLOCKCHAIN
+	QUERY_TRANSACTION_POOL
+	RESPONSE_TRANSACTION_POOL
+)
+
+func (messageType MESSAGE_TYPE) ToUint() uint8 {
+	return uint8(messageType)
+}
