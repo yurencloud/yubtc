@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/libp2p/go-libp2p-peer"
 	"flag"
+	"github.com/libp2p/go-libp2p-peer"
 	"fmt"
 	"github.com/libp2p/go-libp2p-peerstore"
 	"bufio"
@@ -11,10 +11,10 @@ import (
 	goLogging "github.com/whyrusleeping/go-logging"
 	"log"
 	"context"
-	"github.com/gorilla/mux"
 )
 
 func main() {
+
 	// 可以改成debug模式查看更多p2p信息
 	golog.SetAllLoggers(goLogging.INFO)
 
@@ -59,7 +59,6 @@ func main() {
 			log.Fatalln(err)
 		}
 
-
 		targetPeerAddr, _ := multiAddress.NewMultiaddr(fmt.Sprintf("/ipfs/%s", peer.IDB58Encode(peerid)))
 		targetAddr := ipfsaddr.Decapsulate(targetPeerAddr)
 
@@ -80,23 +79,6 @@ func main() {
 		go writeData(rw)
 		go readData(rw)
 
-		// 这个可以主动向其他的p2p发信息
-		//// doEcho reads a line of data a stream and writes it back
-		//func doEcho(s net.Stream) error {
-		//	buf := bufio.NewReader(s)
-		//	str, err := buf.ReadString('\n')
-		//	if err != nil {
-		//	return err
-		//}
-		//
-		//	log.Printf("read: %s\n", str)
-		//	_, err = s.Write([]byte(str))
-		//	return err
-		//}
-
-		select {}
-
-		router := mux.NewRouter()
-		InitRouter(router)
+		Run()
 	}
 }

@@ -2,16 +2,12 @@ package main
 
 import (
 	"fmt"
-	"encoding/json"
 	"bufio"
 	"time"
 	"sync"
-	"strings"
 	"crypto/rand"
-	"os"
 	mrand "math/rand"
 	"io"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-crypto"
 	"github.com/libp2p/go-libp2p-host"
@@ -97,7 +93,7 @@ func handleMessage(message Message)  {
 
 // 读取p2p端口发送过来的数据
 func readData(rw *bufio.ReadWriter) {
-	blockchain := GetBlockchain()
+	//blockchain := GetBlockchain()
 	for {
 		str, err := rw.ReadString('\n')
 		if err != nil {
@@ -107,39 +103,71 @@ func readData(rw *bufio.ReadWriter) {
 			return
 		}
 		if str != "\n" {
-			block := Block{}
-			log.Println(str)
-			if err := json.Unmarshal([]byte(str), &block); err != nil {
-				log.Fatal(err)
-			}
+			//block := Block{}
+			//log.Println(str)
+			//if err := json.Unmarshal([]byte(str), &block); err != nil {
+			//	log.Fatal(err)
+			//}
 			mutex.Lock()
-			blockchain.AddBlock(block)
+			//blockchain.AddBlock(block)
 			mutex.Unlock()
 		}
 	}
 }
 
+// 通过readData和writeData得到一个自运行的p2p服务
+// 1、 write(ws, queryChainLengthMsg()); // 获取最新的区块长度，收到请求的其他区块会广播自己最新的区块
+// 2、          case MessageType.QUERY_LATEST:
+//                    write(ws, responseLatestMsg()); 收到最新区块的响应
+//3、       case MessageType.RESPONSE_BLOCKCHAIN:
+//                    const receivedBlocks = JSONToObject(message.data);
+//                    if (receivedBlocks === null) {
+//                        console.log('invalid blocks received: %s', JSON.stringify(message.data));
+//                        break;
+//                    }
+//                    handleBlockchainResponse(receivedBlocks);
+//                    break; // 处理接收到的最新区块，若刚好接上，就添加到区块链，区块很老就叫他更新，若区块很高，就向他请示全部区块
+// 以便自己更新
+
+// 首次会发出查询最新区块的请求
+// 之后会定时广播，查询未写入到块的交易池，并更新
+// 而如果自己或者其他节点添加了区块，他会主动广播，说我加了新区块，让大家更新
+// 在js里，广播是 将websocks保存到数组中，全部遍历发送一遍消息
+
+// 我的解决方案，每1秒对外广播1次自己的最新交易池和最新hash(这个不用查询数据库就可以获得)。
+// 接收方更新自己的交易池，同时检查自己的最新区块hash和接收到的最新区块hash是否相同，如果不相同，再检查自己的区块链数据库中有没有这个hash，
+// 如果没有，就说明自己落后了，要广播，告诉大家他的最高区块，大家根据他的最高区块，返回50个以内的区块给他，他接收到后添加到自己的区块链中
+// 如果他落后大于50，但经过多次广播后，也会同步到最新节点
+// 一个区块中最多20笔交易
+
+// 如何通过p2p向自己请求：自己对外writeData，自己也会收到请求，这时自己响应就可以
+
+// js案例中，需要额外的挖矿行为，所以有待处理的交易池。而go案例中，当发生交易时，立即自动进行挖矿行为，立即处理交易并写入块，
+// 所以没有交易池。
+
 // 广播写数据
 func writeData(rw *bufio.ReadWriter) {
-	blockchain := GetBlockchain()
+	//blockchain := GetBlockchain()
+	// 在一个新进程里循环广播
 	go func() {
 		for {
 			// 每5秒广播最新的区块
 			time.Sleep(1 * time.Second)
 			mutex.Lock()
-			lastedBlock := blockchain.getLatestBlock()
-			lastedBlockBytes, err := json.Marshal(*lastedBlock)
-			if err != nil {
-				log.Println(err)
-			}
+			//lastedBlock := blockchain.getLatestBlock()
+			//lastedBlockBytes, err := json.Marshal(*lastedBlock)
+			//if err != nil {
+			//	log.Println(err)
+			//}
 			mutex.Unlock()
 			mutex.Lock()
 			// 广播最新区块
-			rw.WriteString(fmt.Sprintf("%s\n", string(lastedBlockBytes)))
+			rw.WriteString(fmt.Sprintf("%s\n", string("hello")))
 			rw.Flush()
 			mutex.Unlock()
 		}
 	}()
+
 
 	//for {
 	//	// 获取用户的输入，若没有，则跳过

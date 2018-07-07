@@ -12,7 +12,9 @@ type Block struct {
 	Hash         []byte
 	PreviousHash []byte
 	Timestamp    int64
-	Data         []byte
+	Data         []*Transaction
+	Difficulty   int64
+	Nonce        int64
 }
 
 // 序列化Block

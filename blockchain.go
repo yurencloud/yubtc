@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"github.com/yurencloud/yubtc/util"
+	"github.com/yurencloud/yubtc/utils"
 	. "github.com/yurencloud/yubtc/types"
 	"time"
 	"fmt"
@@ -37,11 +37,11 @@ type BlockchainIterator struct {
 // 计算区块哈稀
 func calculateHash(index int64, previousHash []byte, timestamp int64, data []byte) []byte {
 	var buffer bytes.Buffer //Buffer是一个实现了读写方法的可变大小的字节缓冲
-	buffer.Write(util.Int64ToBytes(index))
+	buffer.Write(utils.Int64ToBytes(index))
 	buffer.Write(previousHash)
-	buffer.Write(util.Int64ToBytes(timestamp))
+	buffer.Write(utils.Int64ToBytes(timestamp))
 	buffer.Write([]byte(data))
-	return util.Sha256(buffer.Bytes())
+	return utils.Sha256(buffer.Bytes())
 }
 
 func calculateHashForBlock(block Block) []byte {
