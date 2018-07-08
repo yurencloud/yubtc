@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"log"
@@ -9,30 +9,27 @@ import (
 	"os"
 	"github.com/boltdb/bolt"
 	"bytes"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const dbFile = "db/blockchian.db" //定义数据文件名
 const blocksBucket = "blocks"     //区块桶
 
-var genesisBlock = Block{
-	0,
-	[]byte("ba8613cd3c6c6d714cbdd14b8a1c03e59331a96247f9b3d62278e8d97e1531e1"),
-	[]byte{},
-	1530105476,
-	[]byte("genesis block"),
+var genesisTransaction = Transaction{
+	common.Hex2Bytes("e655f6a5f26dc9b4cac6e46f52336428287759cf81ef5ff10854f69d68f43fa3"),
+	TXInput{}
 }
 
-// 区块链数据库
-type Blockchain struct {
-	lastedBlockHash []byte   //最新一个区块的hash
-	db  *bolt.DB //区块链数据库
-}
+var genesisBlock = NewGenesisBlock()
 
-// 区块链数据库迭代器用于迭代区块
-type BlockchainIterator struct {
-	currentHash []byte   //当前区块的hash
-	db          *bolt.DB //区块链数据库
-}
+//const genesisTransaction = {
+//'txIns': [{'signature': '', 'txOutId': '', 'txOutIndex': 0}],
+//'txOuts': [{
+//'address': '04bfcab8722991ae774db48f934ca79cfb7dd991229153b9f732ba5334aafcd8e7266e47076996b55a14bf9913ee3145ce0cfc1372ada8ada74bd287450313534a',
+//'amount': 50
+//}],
+//'id': 'e655f6a5f26dc9b4cac6e46f52336428287759cf81ef5ff10854f69d68f43fa3'
+//};
 
 // 计算区块哈稀
 func calculateHash(index int64, previousHash []byte, timestamp int64, data []byte) []byte {
@@ -48,8 +45,11 @@ func calculateHashForBlock(block Block) []byte {
 	return calculateHash(block.Index, block.PreviousHash, block.Timestamp, block.Data)
 }
 
+//创建并返回创世纪Block
+
+
 // 生成下一个区块
-func (blockchain *Blockchain)  generateNextBlock(data []byte) Block {
+func generateNextBlock(data []byte) Block {
 	previousBlock := blockchain.getLatestBlock()
 	index := previousBlock.Index + 1
 	previousHash := previousBlock.Hash
@@ -58,7 +58,7 @@ func (blockchain *Blockchain)  generateNextBlock(data []byte) Block {
 	return Block{index, hash, previousHash, timestamp, data}
 }
 
-func (blockchain *Blockchain) getLatestBlock() *Block {
+func getLatestBlock() *Block {
 	var block *Block
 	err := blockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -72,7 +72,7 @@ func (blockchain *Blockchain) getLatestBlock() *Block {
 	return block
 }
 
-func (blockchain *Blockchain) getGenesisBlock() *Block {
+func getGenesisBlock() *Block {
 	var block *Block
 	err := blockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -120,7 +120,7 @@ func isValidBlockchain(blockchain *Blockchain) bool {
 }
 
 // 多节点存在时，各节点区块链长度可能不一致，同步时取最长链
-func (blockchain *Blockchain) replaceBlockchain(newBlockchain *Blockchain) {
+func replaceBlockchain(newBlockchain *Blockchain) {
 	//查询数据库中最后一块的hash
 	lastedBlock := blockchain.getLatestBlock()
 	if isValidBlockchain(newBlockchain) && newBlockchain.getLatestBlock().Index > lastedBlock.Index {
@@ -132,7 +132,7 @@ func (blockchain *Blockchain) replaceBlockchain(newBlockchain *Blockchain) {
 }
 
 // 从指定节点的区块链更新到最新的区块链
-func (blockchain *Blockchain) updateBlockchain(newBlockchain *Blockchain, lastedBlockHash []byte)  {
+func updateBlockchain(newBlockchain *Blockchain, lastedBlockHash []byte)  {
 	err := newBlockchain.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		c := b.Cursor()
@@ -148,7 +148,7 @@ func (blockchain *Blockchain) updateBlockchain(newBlockchain *Blockchain, lasted
 
 
 //区块链数据库添加区块
-func (blockchain *Blockchain) AddBlock(block Block) {
+func AddBlock(block Block) {
 	//在挖掘新块之后，我们将其序列化表示保存到数据块中并更新"l"，该密钥现在存储新块的哈希。
 	err := blockchain.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blocksBucket))
@@ -169,13 +169,13 @@ func (blockchain *Blockchain) AddBlock(block Block) {
 }
 
 // 迭代器
-func (blockchain *Blockchain) Iterator() *BlockchainIterator {
+func Iterator() *BlockchainIterator {
 	blockchainDbIterator := &BlockchainIterator{blockchain.lastedBlockHash, blockchain.db}
 	return blockchainDbIterator
 }
 
 // 迭代下一区块(其他是上一个区块，一直到创世区块)
-func (i *BlockchainIterator) Prev() *Block {
+func Prev() *Block {
 	var block *Block
 	err := i.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -190,7 +190,7 @@ func (i *BlockchainIterator) Prev() *Block {
 	return block
 }
 
-func (blockchain *Blockchain)  Print()  {
+func Print()  {
 	bci := blockchain.Iterator()
 	for {
 		block := bci.Prev()
